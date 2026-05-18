@@ -1,0 +1,12 @@
+{
+    "tabla_umbrales": {
+        "delgado": {"imc_max": 20, "mod_ancho": 0.90},
+        "estandar": {"imc_max": 26, "mod_ancho": 1.00},
+        "expansion": {"imc_max": 30, "mod_ancho": 1.18},
+        "robusto": {"imc_max": 50, "mod_ancho": 1.35}
+    },
+    "ajustes_base": {
+        "talle_referencia": 2.86,
+        "vertical_referencia": 0.66
+    }
+}
