@@ -13,13 +13,20 @@ const RecomendadorTalles = ({ productoId, onTalleCalculado }) => {
     setProcesando(true);
     try {
       // 1. Le pegamos a tu API de Node/Express para calcular el talle real en MySQL
-      const response = await fetch('http://localhost:3000/api/talles/recomendar')
-        .then(res => res.json())
-        .catch(err => {
-          console.error("Error en la consulta al backend:", err);
-          throw new Error("No se pudo conectar con el servidor de recomendación.");
-        });
-      
+      const response = await fetch('http://localhost:3000/api/talles/recomendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          producto_id: productoId,
+          altura_cm: parseInt(altura),
+          peso_kg: parseFloat(peso)
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "No se pudo conectar con el servidor de recomendación.");
+      }
 
       const data = await response.json();
 

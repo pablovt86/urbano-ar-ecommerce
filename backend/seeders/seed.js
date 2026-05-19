@@ -1,11 +1,19 @@
 const { 
     sequelize, Usuario, Categoria, Producto, 
-    ImagenProducto, VariantePrenda, Carrito, ItemCarrito 
+    ImagenProducto, VariantePrenda, Carrito, ItemCarrito, GuiaTalle 
 } = require('./../models'); // Ajusta la ruta a tus modelos
 const bcrypt = require('bcryptjs');
 
 const poblarBaseDeDatos = async () => {
     try {
+        // 0. Verificar si la BD ya tiene datos
+        await sequelize.sync();
+        const count = await Usuario.count().catch(() => 0);
+        if (count > 0) {
+            console.log('✅ Base de datos ya poblada. Omitiendo seed automático.');
+            process.exit(0);
+        }
+
         // 1. Limpiar y sincronizar (CUIDADO: Borra datos actuales)
         await sequelize.sync({ force: true });
         console.log('--- DB Limpia y Sincronizada ---');
@@ -61,6 +69,13 @@ const poblarBaseDeDatos = async () => {
                 { talle: 'L', color: 'Negro', stock: 100, sku: `SKU-${nuevoP.id}-L`, producto_id: nuevoP.id }
             ]);
             variantesCreadas.push(...vars);
+
+            // Creamos las reglas de Guía de Talles para que el recomendador funcione
+            await GuiaTalle.bulkCreate([
+                { talle: 'S', altura_min_cm: 150, altura_max_cm: 165, peso_min_kg: 45, peso_max_kg: 60, producto_id: nuevoP.id },
+                { talle: 'M', altura_min_cm: 166, altura_max_cm: 175, peso_min_kg: 61, peso_max_kg: 75, producto_id: nuevoP.id },
+                { talle: 'L', altura_min_cm: 176, altura_max_cm: 195, peso_min_kg: 76, peso_max_kg: 95, producto_id: nuevoP.id }
+            ]);
         }
 
         // 5. GENERAR 50 VENTAS CON LÓGICA
