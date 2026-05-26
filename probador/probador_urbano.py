@@ -13,7 +13,7 @@ import speech_recognition as sr
 import sys
 import requests 
 import urllib.request
-from flask import Flask, Response
+from flask import Flask, Response, request, jsonify
 from flask_cors import CORS
 
 # ============================================================================
@@ -21,6 +21,17 @@ from flask_cors import CORS
 # ============================================================================
 
 MODEL_PATH = 'pose_landmarker.task'
+
+# Descargar modelo si no existe
+if not os.path.exists(MODEL_PATH):
+    print(f"📥 Descargando modelo MediaPipe Pose Landmarker ({MODEL_PATH})...")
+    url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
+    try:
+        urllib.request.urlretrieve(url, MODEL_PATH)
+        print("✅ Descarga completada con éxito.")
+    except Exception as e:
+        print(f"❌ Error al descargar el modelo: {e}")
+
 filtro_color = [1.0, 1.0, 1.0]
 cap = None
 
@@ -57,7 +68,7 @@ def calcular_talle_desde_api(producto_id, altura, peso):
         if data.get('success'):
             talle = data['recomendacion']['talle']
             escalas = {'S': 0.88, 'M': 1.0, 'L': 1.12, 'XL': 1.25}
-            return scales.get(talle, 1.0), 1.0
+            return escalas.get(talle, 1.0), 1.0
         return 1.0, 1.0
     except:
         return 1.0, 1.0
@@ -68,20 +79,29 @@ def calcular_talle_desde_api(producto_id, altura, peso):
 
 def hilo_escucha_urbano():
     global filtro_color
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        while True:
-            try:
-                audio = r.listen(source, phrase_time_limit=2)
-                comando = r.recognize_google(audio, language="es-AR").lower()
-                if "rojo" in comando or "roja" in comando:
-                    filtro_color = [0.7, 0.7, 1.5]
-                elif "azul" in comando:
-                    filtro_color = [1.5, 0.7, 0.7]
-                elif "blanca" in comando or "original" in comando:
-                    filtro_color = [1.0, 1.0, 1.0]
-            except:
-                continue
+    try:
+        r = sr.Recognizer()
+        mic = sr.Microphone()
+    except Exception as e:
+        print(f"⚠️ Reconocimiento de voz desactivado (Micrófono no disponible o PyAudio no instalado): {e}")
+        return
+
+    try:
+        with mic as source:
+            while True:
+                try:
+                    audio = r.listen(source, phrase_time_limit=2)
+                    comando = r.recognize_google(audio, language="es-AR").lower()
+                    if "rojo" in comando or "roja" in comando:
+                        filtro_color = [0.7, 0.7, 1.5]
+                    elif "azul" in comando:
+                        filtro_color = [1.5, 0.7, 0.7]
+                    elif "blanca" in comando or "original" in comando:
+                        filtro_color = [1.0, 1.0, 1.0]
+                except Exception as e:
+                    continue
+    except Exception as e:
+        print(f"⚠️ Error en hilo de escucha: {e}")
 
 threading.Thread(target=hilo_escucha_urbano, daemon=True).start()
 
@@ -218,17 +238,37 @@ def generar_frames(altura, peso):
 app_flask = Flask(__name__)
 CORS(app_flask)
 
+@app_flask.route('/configurar', methods=['POST'])
+def configurar():
+    global altura_user, peso_user, url_imagen_prenda, remera_tela
+    try:
+        data = request.get_json() or {}
+        altura_user = float(data.get('altura', 1.70))
+        peso_user = float(data.get('peso', 70.0))
+        url_imagen_prenda = data.get('imagen', 'remera.png')
+        
+        # Recargar la prenda
+        remera_tela = descargar_y_preparar_remera(url_imagen_prenda)
+        
+        print(f"🔄 Configuración remota aplicada: H={altura_user}, W={peso_user}, Prenda={url_imagen_prenda}")
+        return jsonify({"success": True, "message": "Configuración actualizada"})
+    except Exception as e:
+        print(f"❌ Error al configurar: {e}")
+        return jsonify({"success": False, "error": str(e)}), 400
+
 @app_flask.route('/video_feed')
 def video_feed():
     return Response(generar_frames(altura_user, peso_user), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app_flask.route('/apagar')
 def apagar():
+    global cap
     # Destrucción controlada limpia para soltar la webcam de inmediato
     if cap is not None:
         cap.release()
-    print("❌ Matando subproceso AR de forma segura a pedido de Node.")
-    os._exit(0) 
+        cap = None
+    print("❌ Cámara liberada y en espera (Standby).")
+    return jsonify({"success": True, "message": "Cámara liberada y en standby"})
 
 if __name__ == "__main__":
     app_flask.run(host='0.0.0.0', port=5000, threaded=True, debug=False)

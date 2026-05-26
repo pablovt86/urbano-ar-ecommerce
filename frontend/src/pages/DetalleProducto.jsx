@@ -23,6 +23,7 @@ const DetalleProducto = () => {
   const [alturaActual, setAlturaActual] = useState(170);
   const [pesoActual, setPesoActual] = useState(73);
 
+
   // ============================================================================
   // 1. OBTENER PRODUCTO DESDE TU CONTROLADOR NATIVO DE SEQUELIZE (MYSQL)
   // ============================================================================
@@ -45,7 +46,16 @@ const DetalleProducto = () => {
 
           // Cargamos la máscara inicial asociada al talle base M
           const varianteInicial = data.variantes?.find(v => v.talle === 'M');
-          setMascaraVtonActual(varianteInicial?.imagen_vton_url || 'remera.png');
+          let mascaraInicial = varianteInicial?.imagen_vton_url;
+          if (!mascaraInicial) {
+            const tituloLower = data.titulo.toLowerCase();
+            if (tituloLower.includes('militar') || tituloLower.includes('chaleco') || tituloLower.includes('jean') || tituloLower.includes('hoodie')) {
+              mascaraInicial = 'chalecomilitar.png';
+            } else {
+              mascaraInicial = 'remera.png';
+            }
+          }
+          setMascaraVtonActual(mascaraInicial);
         }
         setCargando(false);
       } catch (error) {
@@ -71,6 +81,14 @@ const DetalleProducto = () => {
       
       if (varianteExacta && varianteExacta.imagen_vton_url) {
         setMascaraVtonActual(varianteExacta.imagen_vton_url);
+      } else {
+        const tituloLower = producto.titulo.toLowerCase();
+        // Mapeo de prueba rápido: Si es un Jean o un Hoodie, forzamos chalecomilitar.png para verlo en vivo
+        if (tituloLower.includes('militar') || tituloLower.includes('chaleco') || tituloLower.includes('jean') || tituloLower.includes('hoodie')) {
+          setMascaraVtonActual('chalecomilitar.png');
+        } else {
+          setMascaraVtonActual('remera.png');
+        }
       }
     }
   }, [imagenCentral, talleSeleccionado, producto]);
@@ -99,7 +117,7 @@ const DetalleProducto = () => {
   // ============================================================================
   const abrirProbadorVirtual = async () => {
     try {
-      console.log(`🚀 Solicitando apertura AR -> H: ${alturaActual} | W: ${pesoActual}`);
+      console.log(`🚀 Solicitando apertura AR -> H: ${alturaActual} | W: ${pesoActual} | Prenda: ${mascaraVtonActual}`);
 
       // 1. Le avisamos a Node que levante el proceso de Python
       const response = await fetch('http://localhost:3000/api/sistema/abrir-probador', {
@@ -108,7 +126,7 @@ const DetalleProducto = () => {
         body: JSON.stringify({ 
           altura: alturaActual,  
           peso: pesoActual,      
-          imagen: imagenCentral // Mandamos la URL en vivo que está en el centro
+          imagen: mascaraVtonActual // Mandamos el nombre de la imagen de prueba real (remera.png, chalecomilitar.png, etc.)
         })
       });
 

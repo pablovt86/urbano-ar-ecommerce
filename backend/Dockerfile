@@ -10,4 +10,5 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+# Se agrega una pausa de 5 segundos para que la DB se levante completamente y luego se corre el seed antes de iniciar el dev server.
+CMD ["sh", "-c", "sleep 5 && node seeders/seed.js && npm run dev"]

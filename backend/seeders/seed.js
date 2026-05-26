@@ -6,6 +6,21 @@ const bcrypt = require('bcryptjs');
 
 const poblarBaseDeDatos = async () => {
     try {
+        // Esperar a que la base de datos esté lista
+        let retries = 5;
+        while (retries > 0) {
+            try {
+                await sequelize.authenticate();
+                console.log('✅ Conexión a la base de datos establecida con éxito.');
+                break;
+            } catch (err) {
+                console.log(`⚠️ Esperando conexión a la base de datos... (${retries} intentos restantes)`);
+                retries -= 1;
+                if (retries === 0) throw err;
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+        }
+
         // 0. Verificar si la BD ya tiene datos
         await sequelize.sync();
         const count = await Usuario.count().catch(() => 0);
@@ -62,11 +77,20 @@ const poblarBaseDeDatos = async () => {
                 categoria_id: p.cat
             });
 
+            // Asignamos la máscara correspondiente según el tipo de prenda
+            let mascaraVton = 'remera.png';
+            const tituloLower = p.titulo.toLowerCase();
+            if (tituloLower.includes('militar') || tituloLower.includes('chaleco')) {
+                mascaraVton = 'chalecomilitar.png';
+            } else {
+                mascaraVton = 'remera.png'; // Por defecto
+            }
+
             // Creamos 3 variantes por producto
             const vars = await VariantePrenda.bulkCreate([
-                { talle: 'S', color: 'Negro', stock: 100, sku: `SKU-${nuevoP.id}-S`, producto_id: nuevoP.id },
-                { talle: 'M', color: 'Negro', stock: 100, sku: `SKU-${nuevoP.id}-M`, producto_id: nuevoP.id },
-                { talle: 'L', color: 'Negro', stock: 100, sku: `SKU-${nuevoP.id}-L`, producto_id: nuevoP.id }
+                { talle: 'S', color: 'Negro', stock: 100, sku: `SKU-${nuevoP.id}-S`, producto_id: nuevoP.id, imagen_vton_url: mascaraVton },
+                { talle: 'M', color: 'Negro', stock: 100, sku: `SKU-${nuevoP.id}-M`, producto_id: nuevoP.id, imagen_vton_url: mascaraVton },
+                { talle: 'L', color: 'Negro', stock: 100, sku: `SKU-${nuevoP.id}-L`, producto_id: nuevoP.id, imagen_vton_url: mascaraVton }
             ]);
             variantesCreadas.push(...vars);
 
