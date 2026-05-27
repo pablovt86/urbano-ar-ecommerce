@@ -1,8 +1,9 @@
 // backend/index.js
-require('dotenv').config(); // <-- ESTO TIENE QUE SER LA LÍNEA 1 ABSOLUTA
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { sequelize } = require('./models'); 
+const axios = require('axios');
+const { sequelize } = require('./models');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const path = require('path');
@@ -17,7 +18,7 @@ const userRoutes = require('./routes/userRouter');
 const carritoRoutes = require('./routes/carritoRoutes');
 const recomendadorRoutes = require('./routes/recomendadorRoutes');
 
-// Middlewares globales de configuración (Arriba de todo)
+// Middlewares globales de configuración
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -36,18 +37,38 @@ app.use('/api/talles', recomendadorRoutes); // Sincronizado con router.post('/re
 // ============================================================================
 // ENDPOINT INTEGRADO: SISTEMA AR PROBADOR VIRTUAL AUTÓNOMO
 // ============================================================================
-app.post('/api/sistema/abrir-probador', (req, res) => {
+app.post('/api/sistema/abrir-probador', async (req, res) => {
     const altura = req.body.altura || 1.70;
     const peso = req.body.peso || 70;
-    const imagenUrl = req.body.imagen || 'remera.png'; 
-    
-    const scriptPath = path.join(__dirname, '..', 'provador', 'probador_urbano.py');
-    const carpetaProvador = path.join(__dirname, '..', 'provador');
+    const imagenUrl = req.body.imagen || 'remera.png';
+
+    console.log(`📩 Backend - abrir-probador - Recibido: H=${altura}, W=${peso}, Imagen="${imagenUrl}"`);
+
+    const probadorUrl = process.env.PROBADOR_URL;
+
+    if (probadorUrl) {
+        try {
+            console.log(`🌐 Enviando configuración al probador Docker: ${probadorUrl}/configurar`);
+            await axios.post(`${probadorUrl}/configurar`, {
+                altura,
+                peso,
+                imagen: imagenUrl
+            }, { timeout: 3000 });
+
+            return res.json({ success: true, message: "Levantando proceso AR en contenedor", docker: true });
+        } catch (error) {
+            console.error("⚠️ Error comunicándose con el contenedor del probador, intentando fallback local:", error.message);
+        }
+    }
+
+    // Fallback local:
+    const scriptPath = path.join(__dirname, '..', 'probador', 'probador_urbano.py');
+    const carpetaProbador = path.join(__dirname, '..', 'probador');
 
     res.json({ success: true, message: "Levantando proceso AR con imagen dinámica" });
 
-    exec(`python "${scriptPath}" ${altura} ${peso} "${imagenUrl}"`, { 
-        cwd: carpetaProvador,
+    exec(`python "${scriptPath}" ${altura} ${peso} "${imagenUrl}"`, {
+        cwd: carpetaProbador,
         env: { ...process.env, PYTHONIOENCODING: "utf-8" }
     }, (error) => {
         if (error) console.log("Proceso del probador virtual finalizado.");
@@ -58,8 +79,8 @@ app.post('/api/sistema/abrir-probador', (req, res) => {
 // LEVANTAMIENTO DE BASE DE DATOS Y SERVIDOR
 // ============================================================================
 sequelize.sync({ alter: true })
-  .then(() => {
-    console.log('✅ Base de datos sincronizada. Tablas listas.');
-    app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
-  })
-  .catch(err => console.error('❌ Error de DB:', err));
+    .then(() => {
+        console.log('✅ Base de datos sincronizada. Tablas listas.');
+        app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
+    })
+    .catch(err => console.error('❌ Error de DB:', err));
