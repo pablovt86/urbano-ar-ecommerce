@@ -7,6 +7,7 @@ const sequelize = new Sequelize(
     process.env.DB_PASS,
     {
         host: process.env.DB_HOST,
+        port: process.env.DB_PORT || 3306,
         dialect: 'mysql',
         logging: false,
     }
@@ -24,8 +25,8 @@ const Usuario = sequelize.define('Usuario', {
     altura_cm: { type: DataTypes.INTEGER },
     peso_kg: { type: DataTypes.DECIMAL(5, 2) },
     // CORRECCIÓN: El rol estaba dentro de peso_kg, ahora está afuera
-    rol: { 
-        type: DataTypes.ENUM('admin', 'cliente'), 
+    rol: {
+        type: DataTypes.ENUM('admin', 'cliente'),
         defaultValue: 'cliente',
         allowNull: false
     }
@@ -74,21 +75,20 @@ const ItemCarrito = sequelize.define('ItemCarrito', {
 });
 // Agregá esto junto a tus otros modelos en models/index.js
 const GuiaTalle = sequelize.define('GuiaTalle', {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  talle: { type: DataTypes.STRING, allowNull: false }, // 'S', 'M', 'L', 'XL', 'XXL'
-  sexo_modelo: { type: DataTypes.ENUM('unisex', 'hombre', 'mujer'), defaultValue: 'unisex' },
-  altura_min_cm: { type: DataTypes.INTEGER, allowNull: false },
-  altura_max_cm: { type: DataTypes.INTEGER, allowNull: false },
-  peso_min_kg: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
-  peso_max_kg: { type: DataTypes.DECIMAL(5, 2), allowNull: false }
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    talle: { type: DataTypes.STRING, allowNull: false }, // 'S', 'M', 'L', 'XL', 'XXL'
+    sexo_modelo: { type: DataTypes.ENUM('unisex', 'hombre', 'mujer'), defaultValue: 'unisex' },
+    altura_min_cm: { type: DataTypes.INTEGER, allowNull: false },
+    altura_max_cm: { type: DataTypes.INTEGER, allowNull: false },
+    peso_min_kg: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
+    peso_max_kg: { type: DataTypes.DECIMAL(5, 2), allowNull: false }
 }, { timestamps: false });
 
 // Y en la sección de ASOCIACIONES (al final del archivo), agregás:
 Producto.hasMany(GuiaTalle, { foreignKey: 'producto_id', as: 'guia_talles', onDelete: 'CASCADE' });
 GuiaTalle.belongsTo(Producto, { foreignKey: 'producto_id' });
 
-// No te olvides de exportarlo al final:
-// module.exports = { ..., GuiaTalle };
+
 
 // ==========================================
 // 3. ASOCIACIONES (RELACIONES SQL)
@@ -118,4 +118,4 @@ ItemCarrito.belongsTo(Carrito, { foreignKey: 'carrito_id' });
 VariantePrenda.hasMany(ItemCarrito, { foreignKey: 'variante_id' });
 ItemCarrito.belongsTo(VariantePrenda, { foreignKey: 'variante_id', as: 'variante' });
 
-module.exports = { sequelize, Usuario, Categoria, Producto, ImagenProducto, VariantePrenda, Carrito, ItemCarrito , GuiaTalle};
+module.exports = { sequelize, Usuario, Categoria, Producto, ImagenProducto, VariantePrenda, Carrito, ItemCarrito, GuiaTalle };
