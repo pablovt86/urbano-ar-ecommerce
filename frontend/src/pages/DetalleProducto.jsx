@@ -19,34 +19,43 @@ const DetalleProducto = () => {
   const [imagenCentral, setImagenCentral] = useState('');
   const [mascaraVtonActual, setMascaraVtonActual] = useState('remera.png');
 
+  // CONTROL DE SESIÓN COGNITIVA: Verifica si ya se crearon los perfiles estáticos
+  const [tieneEscaneoPrevio, setTieneEscaneoPrevio] = useState(false);
+
   // ESTADOS DE MEDIDAS: Vinculados directamente a los inputs reales del Recomendador
   const [alturaActual, setAlturaActual] = useState(170);
   const [pesoActual, setPesoActual] = useState(73);
 
   // ============================================================================
-  // 1. OBTENER PRODUCTO DESDE TU CONTROLADOR NATIVO DE SEQUELIZE (MYSQL)
+  // 1. OBTENER PRODUCTO DESDE TU CONTROLADOR NATIVO DE SEQUELIZE (MYSQL) + CACHÉ
   // ============================================================================
   useEffect(() => {
     const obtenerDetalleProducto = async () => {
       try {
-        const productoId = id || 6; // Fallback estratégico al ID 6 por si entrás directo
+        const productoId = id || 6; 
         const response = await fetch(`http://localhost:3000/api/productos/${productoId}`);
         const data = await response.json();
 
         if (data) {
           setProducto(data);
           
-          // Seteamos la imagen inicial de la tabla ImagenProducto (Unsplash)
           if (data.imagenes && data.imagenes.length > 0) {
             setImagenCentral(data.imagenes[0].url);
           } else {
             setImagenCentral("https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=600&q=80");
           }
 
-          // Cargamos la máscara inicial asociada al talle base M
           const varianteInicial = data.variantes?.find(v => v.talle === 'M');
           setMascaraVtonActual(varianteInicial?.imagen_vton_url || 'remera.png');
         }
+
+        // CONTROL DE CALIDAD: Evaluamos si el cliente ya completó el asistente inteligente
+        const perfilFrente = localStorage.getItem('urbano_user_torso_frente');
+        const perfilPerfil = localStorage.getItem('urbano_user_torso_perfil');
+        if (perfilFrente && perfilPerfil) {
+          setTieneEscaneoPrevio(true);
+        }
+
         setCargando(false);
       } catch (error) {
         console.error("❌ Error cargando el detalle desde Express:", error);
@@ -84,7 +93,6 @@ const DetalleProducto = () => {
     setTalleSeleccionado(talle);
     setEscala(escalasTalles[talle] || 1);
 
-    // Salvamos las medidas inyectadas por el input para evitar el delay asincrónico
     const alturaInyectada = datosCalculados.altura || alturaActual;
     const pesoInyectada = datosCalculados.peso || pesoActual;
 
@@ -95,20 +103,19 @@ const DetalleProducto = () => {
   };
 
   // ============================================================================
-  // 4. ACCIÓN DEL BOTÓN: ENVÍA LA IMAGEN DEL CENTRO Y LAS MEDIDAS REALES
+  // 4. ACCIÓN DEL BOTÓN: REALIDAD AUMENTADA (CAMARA VIVO)
   // ============================================================================
   const abrirProbadorVirtual = async () => {
     try {
       console.log(`🚀 Solicitando apertura AR -> H: ${alturaActual} | W: ${pesoActual}`);
 
-      // 1. Le avisamos a Node que levante el proceso de Python
       const response = await fetch('http://localhost:3000/api/sistema/abrir-probador', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           altura: alturaActual,  
           peso: pesoActual,      
-          imagen: imagenCentral // Mandamos la URL en vivo que está en el centro
+          imagen: imagenCentral 
         })
       });
 
@@ -117,10 +124,8 @@ const DetalleProducto = () => {
       if (data.success) {
         console.log("⏳ Node inició Python. Esperando estabilización de hardware...");
         
-        // 2. PARCHE DE CONTROL: Le damos 800ms a la webcam para que inicialice 
-        // antes de mostrar la etiqueta <img> y evitar que React cachee una imagen rota
         setTimeout(() => {
-          setContadorCamara(Date.now()); // Timestamp único e infalible
+          setContadorCamara(Date.now()); 
           setProbadorActivo(true);
           console.log("📷 Espejo virtual acoplado al Front con éxito.");
         }, 800);
@@ -139,22 +144,36 @@ const DetalleProducto = () => {
     }
   };
 
-  // Renders de carga y control
+  // ============================================================================
+  // 5. ENRUTAMIENTO AL SEGUNDO ESPACIO DE TRABAJO (ESCÁNER IA / NANO BANANA)
+  // ============================================================================
+  const viajarAlStudioEstaticoIA = () => {
+    console.log("📡 Redirigiendo al Espacio de Trabajo: AI Studio Studio...");
+    
+    // Mandamos el estado del producto y si entra directo o a tomarse las poses
+    navigate(`/probadorAvanzado/${producto.id || id}`, {
+      state: {
+        productoActual: producto,
+        imagenSeleccionadaVton: mascaraVtonActual,
+        modoDirecto: tieneEscaneoPrevio // True: Salta directo a renderizar. False: Pide las fotos.
+      }
+    });
+  };
+
   if (cargando) return <div className="text-center p-20 font-mono text-cyan-400 bg-gray-950 min-h-screen">Sincronizando Base de Datos...</div>;
   if (!producto) return <div className="text-center p-20 text-red-500 bg-gray-950 min-h-screen">Producto no hallado en MySQL.</div>;
 
-  // Si no tiene imágenes, armamos un array con el fallback por defecto
   const galeriaImagenes = producto.imagenes && producto.imagenes.length > 0 
     ? producto.imagenes 
     : [{ id: 'default', url: imagenCentral }];
 
   return (
-    <div className="bg-gray-950 min-h-screen text-white p-8 relative">
+    <div className="bg-gray-950 min-h-screen text-white p-8 relative font-mono">
       
       {/* Botón de retorno al Home */}
       <button 
         onClick={() => navigate('/')}
-        className="mb-6 text-xs uppercase tracking-widest text-gray-400 hover:text-cyan-400 transition-colors font-mono flex items-center gap-2"
+        className="mb-6 text-xs uppercase tracking-widest text-gray-400 hover:text-cyan-400 transition-colors flex items-center gap-2"
       >
         ← Volver al Catálogo
       </button>
@@ -164,7 +183,6 @@ const DetalleProducto = () => {
         {/* LADO IZQUIERDO: MINIATURAS VERTICALES + DISPLAY CENTRAL */}
         <div className="w-full md:w-1/2 flex gap-4 h-[500px]">
           
-          {/* Carrusel de miniaturas reales de Unsplash */}
           <div className="flex flex-col gap-3 w-20 h-full overflow-y-auto pr-1 scrollbar-none">
             {galeriaImagenes.map((img, index) => (
               <button
@@ -179,8 +197,7 @@ const DetalleProducto = () => {
             ))}
           </div>
 
-          {/* Visualizador central */}
-          <div className="flex-1 flex items-center justify-center bg-gray-900 rounded-2xl h-full overflow-hidden border border-gray-800 relative">
+          <div className="flex-1 flex items-center justify-center bg-gray-900/50 rounded-2xl h-full overflow-hidden border border-gray-800 relative">
             <img 
               src={imagenCentral} 
               alt={producto.titulo}
@@ -188,25 +205,46 @@ const DetalleProducto = () => {
               style={{ transform: `scale(${escala})` }} 
             />
             
+            {/* OPCIÓN 1: BOTÓN CLÁSICO RA (CAMARA EN VIVO) */}
             <button 
               onClick={abrirProbadorVirtual}
-              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-cyan-500 hover:bg-cyan-600 text-black font-black px-6 py-3 rounded-full text-xs transition-all z-10 shadow-2xl tracking-wider uppercase whitespace-nowrap"
+              className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-950/90 hover:bg-gray-900 text-cyan-400 border border-cyan-500/40 font-bold px-5 py-3 rounded-full text-[10px] transition-all z-10 shadow-2xl tracking-widest uppercase whitespace-nowrap"
             >
-              📷 Probar en Espejo Virtual
+              📹 AR EN VIVO
             </button>
           </div>
         </div>
 
-        {/* LADO DERECHO: INFO DESDE TU CONTROLADOR */}
+        {/* LADO DERECHO: INFO DESDE TU CONTROLADOR + PANEL PREMIUM IA */}
         <div className="w-full md:w-1/2 flex flex-col justify-center">
-          <span className="text-xs uppercase font-mono tracking-widest text-cyan-400">
+          <span className="text-xs uppercase tracking-widest text-cyan-400">
             Categoría: {producto.categoria?.nombre || "General"}
           </span>
           <h1 className="text-4xl font-black mb-2 mt-1 text-white uppercase tracking-tight">{producto.titulo}</h1>
           <p className="text-3xl font-light text-cyan-400 mb-6">${Number(producto.precio).toLocaleString('es-AR')}</p>
-          <p className="text-gray-400 text-sm font-light mb-8 leading-relaxed">{producto.descripcion}</p>
+          <p className="text-gray-400 text-sm font-light mb-6 leading-relaxed">{producto.descripcion}</p>
 
-          {/* Tu componente hijo RecomendadorTalles */}
+          {/* ============================================================================
+              PANEL ARQUITECTÓNICO DUAL: BOTÓN MÁGICO GENERATIVO (AI STUDIO)
+              ============================================================================ */}
+          <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[9px] uppercase tracking-widest text-purple-400 font-bold bg-purple-950/40 px-2 py-1 rounded-md border border-purple-800/30">
+                ✨ ESPACIO AI STUDIO
+              </span>
+              <span className="text-[9px] text-gray-500">
+                {tieneEscaneoPrevio ? "🟢 SESIÓN CONECTADA" : "⚪ REQUERIR CONFIGURACIÓN"}
+              </span>
+            </div>
+
+            <button
+              onClick={viajarAlStudioEstaticoIA}
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest transition-all duration-300 shadow-lg shadow-purple-600/10 flex items-center justify-center gap-2"
+            >
+              {tieneEscaneoPrevio ? "🔮 VER CALCE DE ALTA FIDELIDAD (NANO BANANA 2)" : "📷 ESCANEAR MI CUERPO (ASISTENTE IA)"}
+            </button>
+          </div>
+
           <RecomendadorTalles 
             productoId={producto.id} 
             onTalleCalculado={handleTalleRecomendado} 
@@ -229,7 +267,7 @@ const DetalleProducto = () => {
             >
               Cerrar Probador ×
             </button>
-
+        
             <img 
               src={`http://localhost:5000/video_feed?v=${contadorCamara}`} 
               alt="Espejo Virtual Urbano" 
