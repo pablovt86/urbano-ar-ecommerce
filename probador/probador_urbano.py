@@ -24,11 +24,19 @@ MODEL_PATH = 'pose_landmarker.task'
 
 # Descargar modelo si no existe
 if not os.path.exists(MODEL_PATH):
-    print(f"📥 Descargando modelo MediaPipe Pose Landmarker ({MODEL_PATH})...")
+    print(f"📥 Cargando modelo MediaPipe Pose Landmarker... (0%)")
     url = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
     try:
-        urllib.request.urlretrieve(url, MODEL_PATH)
-        print("✅ Descarga completada con éxito.")
+        def descargar_con_progreso(url, archivo):
+            def mostrar_progreso(bloque, tamaño_bloque, tamaño_total):
+                descargado = bloque * tamaño_bloque
+                porcentaje = min(100, int((descargado / tamaño_total) * 100))
+                print(f"📥 Cargando modelo... ({porcentaje}%)")
+                sys.stdout.flush()
+            urllib.request.urlretrieve(url, archivo, mostrar_progreso)
+        
+        descargar_con_progreso(url, MODEL_PATH)
+        print("✅ Modelo cargado (100%)")
     except Exception as e:
         print(f"❌ Error al descargar el modelo: {e}")
 
@@ -114,19 +122,37 @@ def descargar_y_preparar_remera(url_o_ruta):
     Descarga la remera de internet, le inyecta canal alfa si es JPG 
     y la normaliza a 500x500 px eliminando los bordes excedentes.
     """
+    print(f"👕 Cargando prenda... (0%)")
+    sys.stdout.flush()
+    
     img = None
     try:
         if url_o_ruta.startswith('http://') or url_o_ruta.startswith('https://'):
+            print(f"👕 Cargando prenda... (25%)")
+            sys.stdout.flush()
+            
             req = urllib.request.Request(url_o_ruta, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response:
                 arr = np.asarray(bytearray(response.read()), dtype=np.uint8)
                 img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+            
+            print(f"👕 Cargando prenda... (50%)")
+            sys.stdout.flush()
         else:
+            print(f"👕 Cargando prenda desde archivo... (25%)")
+            sys.stdout.flush()
             img = cv2.imread(url_o_ruta, cv2.IMREAD_UNCHANGED)
+            print(f"👕 Cargando prenda... (50%)")
+            sys.stdout.flush()
             
         if img is None:
+            print(f"👕 Cargando prenda por defecto... (75%)")
+            sys.stdout.flush()
             return cv2.imread('remera.png', cv2.IMREAD_UNCHANGED)
 
+        print(f"👕 Cargando prenda... (75%)")
+        sys.stdout.flush()
+        
         # Si no tiene transparencia, le acoplamos el canal Alfa (4 canales)
         if len(img.shape) == 2 or img.shape[2] == 3:
             b, g, r = cv2.split(img)
@@ -139,15 +165,29 @@ def descargar_y_preparar_remera(url_o_ruta):
             y_min, y_max = np.min(posiciones[0]), np.max(posiciones[0])
             x_min, x_max = np.min(posiciones[1]), np.max(posiciones[1])
             img_recortada = img[y_min:y_max, x_min:x_max]
-            return cv2.resize(img_recortada, (500, 500), interpolation=cv2.INTER_CUBIC)
-            
-        return cv2.resize(img, (500, 500), interpolation=cv2.INTER_CUBIC)
+            print(f"👕 Cargando prenda... (90%)")
+            sys.stdout.flush()
+            resultado = cv2.resize(img_recortada, (500, 500), interpolation=cv2.INTER_CUBIC)
+            print(f"✅ Prenda cargada (100%)")
+            sys.stdout.flush()
+            return resultado
+        
+        print(f"👕 Cargando prenda... (90%)")
+        sys.stdout.flush()
+        resultado = cv2.resize(img, (500, 500), interpolation=cv2.INTER_CUBIC)
+        print(f"✅ Prenda cargada (100%)")
+        sys.stdout.flush()
+        return resultado
     except Exception as e:
-        print(f"Error cargando prenda: {e}. Usando remera.png base.")
+        print(f"⚠️ Error cargando prenda: {e}. Usando remera.png por defecto.")
         return cv2.imread('remera.png', cv2.IMREAD_UNCHANGED)
 
 # Preparamos la tela real descargada antes de prender el bucle de video
+print("\n🚀 Inicializando probador de Realidad Aumentada...")
+sys.stdout.flush()
 remera_tela = descargar_y_preparar_remera(url_imagen_prenda)
+print("✅ ¡Probador listo! Abre http://localhost:5000 en tu navegador\n")
+sys.stdout.flush()
 
 # ============================================================================
 # 5. GENERADOR DE FRAMES DE VIDEO
@@ -271,4 +311,12 @@ def apagar():
     return jsonify({"success": True, "message": "Cámara liberada y en standby"})
 
 if __name__ == "__main__":
+    print("=" * 60)
+    print("📹 PROBADOR URBANO AR - SERVIDOR INICIADO")
+    print("=" * 60)
+    print("✅ Estado: LISTO Y ESPERANDO CONEXIÓN")
+    print("🌐 URL: http://localhost:5000")
+    print("⏳ Nota: La cámara se activará cuando se conectes desde el navegador")
+    print("=" * 60)
+    print()
     app_flask.run(host='0.0.0.0', port=5000, threaded=True, debug=False)
