@@ -3,11 +3,13 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { sequelize } = require('./models'); 
-const app = express();
-const PORT = process.env.PORT || 3000;
 const path = require('path');
-const { exec } = require('child_process');
+const { exec , spawn } = require('child_process');
 
+// 1. ACÁ SE CREA LA VARIABLE (¡Fundamental que esté acá arriba!)
+const app = express(); 
+const PORT = process.env.PORT || 3000;
+ 
 // Importar rutas modulares
 const authRoutes = require('./routes/authRoutes');
 const productoRoutes = require('./routes/productsRoutes');
@@ -16,41 +18,82 @@ const adminRoutes = require('./routes/adminRoutes');
 const userRoutes = require('./routes/userRouter');
 const carritoRoutes = require('./routes/carritoRoutes');
 const recomendadorRoutes = require('./routes/recomendadorRoutes');
+const sistemaRouter = require('./routes/sistemaRouter');
 
-// Middlewares globales de configuración (Arriba de todo)
-app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Para aceptar JSON con payloads grandes (como imágenes en base64)
+// Middlewares globales de configuración (¡Siempre arriba de los endpoints!)
+app.use(cors({
+    origin: '*', // Permite que tu localhost lea todo desde ngrok sin restricciones
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// ============================================================================
-// REGISTRO DE RUTAS MODULARES EN EXPRESS
-// ============================================================================
+app.use('/images', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    next();
+}, express.static(path.join(__dirname, 'public', 'images')));
+// Registro de rutas modulares comunes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/categorias', categoriaRoutes);
 app.use('/api/usuarios', userRoutes);
 app.use('/api/carrito', carritoRoutes);
-app.use('/api/talles', recomendadorRoutes); 
+app.use('/api/talles', recomendadorRoutes);
+app.use('/api/sistema', sistemaRouter);
 
-// ============================================================================
-// ENDPOINT INTEGRADO: SISTEMA AR PROBADOR VIRTUAL AUTÓNOMO
-// ============================================================================
+// El endpoint viejo de Python (si lo mantenés, va acá)
+
+
+
 app.post('/api/sistema/abrir-probador', (req, res) => {
+    const productoId = req.body.productoId || 'desconocido';
     const altura = req.body.altura || 1.70;
     const peso = req.body.peso || 70;
-    const imagenUrl = req.body.imagen || 'remera.png'; 
-    
+    // Captura exacta del string (ej: "BrownLeatherJacket.jpg")
+    const imagen = req.body.imagen || 'remera.png'; 
+    const tipo_prenda = req.body.tipo_prenda || 'superior';
+    const tipo_overlay = req.body.tipo_overlay || 'torso';
+
     const scriptPath = path.join(__dirname, '..', 'provador', 'probador_urbano.py');
     const carpetaProvador = path.join(__dirname, '..', 'provador');
 
+    console.log(`📋 NODE ENVIANDO A PYTHON -> Altura: ${altura} | Peso: ${peso} | Prenda: ${imagen} | Tipo Prenda: ${tipo_prenda} | Tipo Overlay: ${tipo_overlay}`);
+
+    // Enviamos el json de éxito al frontend para que acople el modal de la cámara
     res.json({ success: true, message: "Levantando proceso AR con imagen dinámica" });
 
-    exec(`python "${scriptPath}" ${altura} ${peso} "${imagenUrl}"`, { 
+    // 🔄 SOLUCIÓN: Usamos spawn pasándole los argumentos limpios uno por uno en un array
+
+
+    console.log("ARGS ENVIADOS A PYTHON");
+
+        console.log([
+          scriptPath,
+          String(altura),
+          String(peso),
+          imagen,
+          tipo_overlay,
+          tipo_prenda
+        ]);
+    const pythonProcess = spawn('python', [scriptPath, altura, peso, imagen, tipo_overlay, tipo_prenda], {
         cwd: carpetaProvador,
         env: { ...process.env, PYTHONIOENCODING: "utf-8" }
-    }, (error) => {
-        if (error) console.log("Proceso del probador virtual finalizado.");
+    });
+
+    // Capturamos los prints de Python para debuguear en la terminal de Node
+    pythonProcess.stdout.on('data', (data) => {
+        console.log(`[Python]: ${data.toString().trim()}`);
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+        console.error(`[Python Error]: ${data.toString().trim()}`);
+    });
+
+    pythonProcess.on('close', (code) => {
+        console.log(`Proceso del probador virtual finalizado con código: ${code}`);
     });
 });
 // ============================================================================
@@ -107,10 +150,18 @@ app.post('/api/sistema/procesar-studio', async (req, res) => {
   }
 });
 
+
+
+
 // ============================================================================
-// LEVANTAMIENTO DE BASE DE DATOS Y SERVIDOR
+// 🔥 2. EL NUEVO ENDPOINT DE KLING VA ACÁ ABAJO (Donde 'app' ya existe perfectamente)
 // ============================================================================
-sequelize.sync({ alter: true })
+
+
+// ============================================================================
+// LEVANTAMIENTO DE BASE DE DATOS Y SERVIDOR (¡Siempre al final de todo!)
+// ============================================================================
+sequelize.sync()
   .then(() => {
     console.log('✅ Base de datos sincronizada. Tablas listas.');
     app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));

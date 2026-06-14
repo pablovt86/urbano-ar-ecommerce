@@ -1,10 +1,10 @@
-const { Producto, ImagenProducto, VariantePrenda, Categoria } = require('../models');
+const { Producto, ImagenProducto, VariantePrenda, Categoria,ConfiguracionProbador} = require('../models');
 
 
 const productoController = {
   crearProducto: async (req, res) => {
   try {
-    const { titulo, descripcion, precio, categoria_id, es_nuevo, destacado, imagenes, variantes } = req.body;
+    const { titulo, descripcion, precio, categoria_id, es_nuevo, destacado, imagenes, variantes, tipo_prenda, tipo_overlay } = req.body;
 
     // Sequelize permite crear el registro principal y sus relaciones al mismo tiempo
    const nuevoProducto = await Producto.create({
@@ -14,6 +14,8 @@ const productoController = {
     categoria_id,
     es_nuevo,
     destacado,
+    tipo_prenda,
+    tipo_overlay,
     // Si no vienen imagenes o variantes, enviamos un array vacío
     imagenes: imagenes || [], 
     variantes: variantes || []
@@ -21,9 +23,11 @@ const productoController = {
     include: [
         { model: ImagenProducto, as: 'imagenes' },
         { model: VariantePrenda, as: 'variantes' }
+        
     ] 
 });
-
+   console.log("ID solicitado:", req.params.id);
+   console.log("Variantes:", producto.variantes);
     res.status(201).json({
       success: true,
       mensaje: 'Producto creado exitosamente',
@@ -43,7 +47,8 @@ const productoController = {
                 include: [
                     { model: ImagenProducto, as: 'imagenes' },
                     { model: VariantePrenda, as: 'variantes' },
-                    { model: Categoria, as: 'categoria' }
+                    { model: Categoria, as: 'categoria' },
+                    { model: ConfiguracionProbador, as: 'configuracion_probador' }
                 ]
             });
             res.json(productos);
@@ -56,10 +61,11 @@ const productoController = {
     obtenerUno: async (req, res) => {
         try {
             const producto = await Producto.findByPk(req.params.id, {
-                include: ['imagenes', 'variantes', 'categoria']
+                include: ['imagenes', 'variantes', 'categoria', 'configuracion_probador']
             });
             if (!producto) return res.status(404).json({ mensaje: "Producto no encontrado" });
             res.json(producto);
+            console.log(JSON.stringify(producto, null, 2));
         } catch (error) {
             res.status(500).json({ error: error.message });
         }

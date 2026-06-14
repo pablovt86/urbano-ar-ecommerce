@@ -19,15 +19,15 @@ const DetalleProducto = () => {
   const [imagenCentral, setImagenCentral] = useState('');
   const [mascaraVtonActual, setMascaraVtonActual] = useState('remera.png');
 
-  // CONTROL DE SESIÓN COGNITIVA: Verifica si ya se crearon los perfiles estáticos
+  // CONTROL DE SESIÓN COGNITIVA
   const [tieneEscaneoPrevio, setTieneEscaneoPrevio] = useState(false);
 
-  // ESTADOS DE MEDIDAS: Vinculados directamente a los inputs reales del Recomendador
+  // ESTADOS DE MEDIDAS
   const [alturaActual, setAlturaActual] = useState(170);
   const [pesoActual, setPesoActual] = useState(73);
 
   // ============================================================================
-  // 1. OBTENER PRODUCTO DESDE TU CONTROLADOR NATIVO DE SEQUELIZE (MYSQL) + CACHÉ
+  // 1. OBTENER PRODUCTO DESDE TU CONTROLADOR NATIVO DE SEQUELIZE (MYSQL)
   // ============================================================================
   useEffect(() => {
     const obtenerDetalleProducto = async () => {
@@ -38,18 +38,24 @@ const DetalleProducto = () => {
 
         if (data) {
           setProducto(data);
-          
+          console.log("Variantes recibidas:", data.variantes);
+          // 🔄 CORRECCIÓN: Buscamos la foto principal real que viene de la relación de Sequelize
           if (data.imagenes && data.imagenes.length > 0) {
-            setImagenCentral(data.imagenes[0].url);
+            const principal = data.imagenes.find(img => img.es_principal)?.url || data.imagenes[0].url;
+            setImagenCentral(principal);
           } else {
-            setImagenCentral("https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=600&q=80");
+            setImagenCentral("hoodie.png");
           }
 
-          const varianteInicial = data.variantes?.find(v => v.talle === 'M');
-          setMascaraVtonActual(varianteInicial?.imagen_vton_url || 'remera.png');
-        }
+         if (data.variantes?.length > 0) {
+              setMascaraVtonActual(
+                data.variantes[0].imagen_vton_url
+              );
+            } else{
+              setMascaraVtonActual('remera.png');
+            }
+                    }
 
-        // CONTROL DE CALIDAD: Evaluamos si el cliente ya completó el asistente inteligente
         const perfilFrente = localStorage.getItem('urbano_user_torso_frente');
         const perfilPerfil = localStorage.getItem('urbano_user_torso_perfil');
         if (perfilFrente && perfilPerfil) {
@@ -76,10 +82,26 @@ const DetalleProducto = () => {
     const imagenActiva = producto.imagenes?.find(img => img.url === urlBuscar) || producto.imagenes?.[0];
     
     if (imagenActiva) {
-      const varianteExacta = producto.variantes?.find(v => v.talle === talleSeleccionado);
-      
-      if (varianteExacta && varianteExacta.imagen_vton_url) {
-        setMascaraVtonActual(varianteExacta.imagen_vton_url);
+      console.log("TALLE:", talleSeleccionado);
+
+console.log(
+  producto.variantes.map(v => ({
+      talle: v.talle,
+      imagen: v.imagen_vton_url
+  }))
+);
+
+   const varianteExacta =
+   producto.variantes?.find(
+      v => v.talle === talleSeleccionado
+   ) ||
+   producto.variantes?.[0];
+   
+   
+      if (varianteExacta?.imagen_vton_url) {
+      setMascaraVtonActual(
+      varianteExacta.imagen_vton_url
+        );
       }
     }
   }, [imagenCentral, talleSeleccionado, producto]);
@@ -105,9 +127,10 @@ const DetalleProducto = () => {
   // ============================================================================
   // 4. ACCIÓN DEL BOTÓN: REALIDAD AUMENTADA (CAMARA VIVO)
   // ============================================================================
+  
   const abrirProbadorVirtual = async () => {
+  
     try {
-      console.log(`🚀 Solicitando apertura AR -> H: ${alturaActual} | W: ${pesoActual}`);
 
       const response = await fetch('http://localhost:3000/api/sistema/abrir-probador', {
         method: 'POST',
@@ -115,7 +138,9 @@ const DetalleProducto = () => {
         body: JSON.stringify({ 
           altura: alturaActual,  
           peso: pesoActual,      
-          imagen: imagenCentral 
+          imagen: mascaraVtonActual,
+          tipo_prenda: producto.tipo_prenda,
+          tipo_overlay: producto.tipo_overlay
         })
       });
 
@@ -145,27 +170,30 @@ const DetalleProducto = () => {
   };
 
   // ============================================================================
-  // 5. ENRUTAMIENTO AL SEGUNDO ESPACIO DE TRABAJO (ESCÁNER IA / NANO BANANA)
+  // 5. ENRUTAMIENTO AL AI STUDIO
   // ============================================================================
   const viajarAlStudioEstaticoIA = () => {
     console.log("📡 Redirigiendo al Espacio de Trabajo: AI Studio Studio...");
-    
-    // Mandamos el estado del producto y si entra directo o a tomarse las poses
     navigate(`/probadorAvanzado/${producto.id || id}`, {
       state: {
         productoActual: producto,
         imagenSeleccionadaVton: mascaraVtonActual,
-        modoDirecto: tieneEscaneoPrevio // True: Salta directo a renderizar. False: Pide las fotos.
+        modoDirecto: tieneEscaneoPrevio 
       }
     });
   };
+  console.log("PRENDA ENVIADA:", mascaraVtonActual);
 
   if (cargando) return <div className="text-center p-20 font-mono text-cyan-400 bg-gray-950 min-h-screen">Sincronizando Base de Datos...</div>;
   if (!producto) return <div className="text-center p-20 text-red-500 bg-gray-950 min-h-screen">Producto no hallado en MySQL.</div>;
 
+  // 🔄 CORRECCIÓN GALERÍA: Si no tiene imágenes asignadas, armamos un array con el hoodie de respaldo
   const galeriaImagenes = producto.imagenes && producto.imagenes.length > 0 
     ? producto.imagenes 
-    : [{ id: 'default', url: imagenCentral }];
+    : [{ id: 'default', url: 'hoodie.png' }];
+
+  // 🔄 CORRECCIÓN URL CENTRAL: Apuntamos de forma estricta hacia tu Express local usando la foto seleccionada
+  const URLImagenCentral = `http://localhost:3000/images/${imagenCentral}`;
 
   return (
     <div className="bg-gray-950 min-h-screen text-white p-8 relative font-mono">
@@ -183,6 +211,7 @@ const DetalleProducto = () => {
         {/* LADO IZQUIERDO: MINIATURAS VERTICALES + DISPLAY CENTRAL */}
         <div className="w-full md:w-1/2 flex gap-4 h-[500px]">
           
+          {/* Miniaturas */}
           <div className="flex flex-col gap-3 w-20 h-full overflow-y-auto pr-1 scrollbar-none">
             {galeriaImagenes.map((img, index) => (
               <button
@@ -192,20 +221,31 @@ const DetalleProducto = () => {
                   imagenCentral === img.url ? 'border-cyan-500 scale-95 shadow-lg' : 'border-gray-800 hover:border-gray-600'
                 }`}
               >
-                <img src={img.url} alt="Muestra" className="w-full h-full object-cover" />
+                {/* 🔄 CORRECCIÓN: Añadido el prefijo local del servidor Express a las miniaturas */}
+                <img 
+                  src={`http://localhost:3000/images/${img.url}`} 
+                  alt="Muestra" 
+                  className="w-full h-full object-contain" 
+                />
               </button>
             ))}
           </div>
 
+          {/* Display Grande */}
           <div className="flex-1 flex items-center justify-center bg-gray-900/50 rounded-2xl h-full overflow-hidden border border-gray-800 relative">
             <img 
-              src={imagenCentral} 
+              src={URLImagenCentral} 
               alt={producto.titulo}
-              className="max-h-full transition-transform duration-500 ease-out object-cover"
+              className="max-h-full transition-transform duration-500 ease-out object-contain"
               style={{ transform: `scale(${escala})` }} 
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=600&q=80";
+              }}
             />
             
-            {/* OPCIÓN 1: BOTÓN CLÁSICO RA (CAMARA EN VIVO) */}
+            {/* BOTÓN CLASSIC RA (CAMARA EN VIVO) */}
+           
             <button 
               onClick={abrirProbadorVirtual}
               className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-950/90 hover:bg-gray-900 text-cyan-400 border border-cyan-500/40 font-bold px-5 py-3 rounded-full text-[10px] transition-all z-10 shadow-2xl tracking-widest uppercase whitespace-nowrap"
@@ -215,7 +255,7 @@ const DetalleProducto = () => {
           </div>
         </div>
 
-        {/* LADO DERECHO: INFO DESDE TU CONTROLADOR + PANEL PREMIUM IA */}
+        {/* LADO DERECHO: INFO DESDE TU CONTROLADOR */}
         <div className="w-full md:w-1/2 flex flex-col justify-center">
           <span className="text-xs uppercase tracking-widest text-cyan-400">
             Categoría: {producto.categoria?.nombre || "General"}
@@ -224,9 +264,7 @@ const DetalleProducto = () => {
           <p className="text-3xl font-light text-cyan-400 mb-6">${Number(producto.precio).toLocaleString('es-AR')}</p>
           <p className="text-gray-400 text-sm font-light mb-6 leading-relaxed">{producto.descripcion}</p>
 
-          {/* ============================================================================
-              PANEL ARQUITECTÓNICO DUAL: BOTÓN MÁGICO GENERATIVO (AI STUDIO)
-              ============================================================================ */}
+          {/* PANEL PREMIUM IA */}
           <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-4 mb-6">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[9px] uppercase tracking-widest text-purple-400 font-bold bg-purple-950/40 px-2 py-1 rounded-md border border-purple-800/30">

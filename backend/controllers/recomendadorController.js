@@ -16,8 +16,19 @@ const recomendarTalle = async (req, res) => {
       order: [['peso_min_kg', 'ASC']]
     });
 
+    // ============================================================================
+    // 🔄 MODIFICACIÓN: PLAN DE RESPALDO SI LA TABLA GUIA TALLES ESTÁ VACÍA
+    // ============================================================================
     if (reglas.length === 0) {
-      return res.status(404).json({ success: false, error: 'No hay medidas registradas para este producto.' });
+      console.log(`⚠️ Alerta: No hay medidas en GuiaTalle para el producto_id: ${producto_id}. Aplicando talle M por defecto.`);
+      
+      return res.status(200).json({
+        success: true,
+        recomendacion: {
+          talle: 'M',
+          explicacion: 'Talle estándar asignado automáticamente (Respaldo por falta de tabla de medidas).'
+        }
+      });
     }
 
     let mejorTalle = null;
