@@ -290,7 +290,7 @@ def generar_frames(altura, peso):
                     pierna = final_pierna_y
                     ancho = np.linalg.norm(cadera_d - cadera_i)
 
-                    pad = ancho * 0.18
+                    pad = ancho * 0.20
 
                     print("ANCHO CADERA:", int(ancho))
                     print("PAD:", int(pad))
